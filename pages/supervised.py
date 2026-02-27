@@ -15,6 +15,13 @@ import joblib
 import requests
 import io
 
+def load_css(filepath):
+    with open(filepath, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css("style.css")
+
+
 st.set_page_config(page_title="Supervised Learning", layout="wide", page_icon="🤖")
 st.title("🤖 Supervised Learning")
 st.markdown("Carica un dataset, scegli le feature, il target e il modello da addestrare.")

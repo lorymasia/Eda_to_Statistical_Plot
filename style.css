@@ -1,0 +1,15 @@
+/* Nascondi bottone Deploy e toolbar */
+[data-testid="stToolbar"] {
+    display: none !important;
+}
+
+/* Disabilita scrittura nei multiselect */
+div[data-testid="stMultiSelect"] input {
+    pointer-events: none !important;
+    caret-color: transparent !important;
+    user-select: none !important;
+}
+
+div[data-testid="stMultiSelect"] [data-baseweb="input"] {
+    cursor: pointer !important;
+}

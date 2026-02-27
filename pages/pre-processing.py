@@ -6,6 +6,13 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, La
 import requests
 import io
 
+def load_css(filepath):
+    with open(filepath, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css("style.css")
+
+
 st.set_page_config(page_title="Data Preprocessing", layout="wide", page_icon="🛠️")
 st.title("🛠️ Data Preprocessing & Feature Engineering")
 st.markdown("Esplora, pulisci e trasforma il tuo dataset prima di addestrare un modello.")

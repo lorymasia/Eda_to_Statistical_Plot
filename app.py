@@ -5,6 +5,13 @@ import plotly.graph_objects as go
 import requests
 import io
 
+def load_css(filepath):
+    with open(filepath, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css("style.css")
+
+
 st.set_page_config(page_title="CSV → Statistical Model", layout="wide", page_icon="📊")
 st.title("📊 CSV to Statistical Model")
 st.markdown("Carica un dataset, scegli colonne e tipo di grafico, esporta e ottieni il codice Python.")

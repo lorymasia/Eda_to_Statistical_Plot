@@ -10,6 +10,13 @@ from sklearn.metrics import silhouette_score
 import requests
 import io
 
+def load_css(filepath):
+    with open(filepath, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css("style.css")
+
+
 st.set_page_config(page_title="Unsupervised Learning", layout="wide", page_icon="🔍")
 st.title("🔍 Unsupervised Learning")
 st.markdown("Clustering e riduzione dimensionale su dataset senza colonna target.")
