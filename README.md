@@ -23,3 +23,9 @@ and instantly generate interactive charts using **Plotly**.
 
 ```bash
 pip install -r requirements.txt
+```
+
+## Usage
+
+```bash
+streamlit run app.py
