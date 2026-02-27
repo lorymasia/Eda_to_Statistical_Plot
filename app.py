@@ -5,8 +5,8 @@ import plotly.graph_objects as go
 import requests
 import io
 
-st.set_page_config(page_title="CSV → Grafico", layout="wide", page_icon="📊")
-st.title("📊 CSV to Chart")
+st.set_page_config(page_title="CSV → Statistical Model", layout="wide", page_icon="📊")
+st.title("📊 CSV to Statistical Model")
 st.markdown("Carica un dataset, scegli colonne e tipo di grafico, esporta e ottieni il codice Python.")
 
 # ── Funzione caricamento dataset ──────────────────────────────────────────────
