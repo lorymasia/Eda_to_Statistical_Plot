@@ -1,1 +1,9 @@
-streamlit\npandas\nplotly\nkaleido
+streamlit
+pandas
+plotly
+kaleido
+scikit-learn
+joblib
+numpy
+ISLP
+scipy
