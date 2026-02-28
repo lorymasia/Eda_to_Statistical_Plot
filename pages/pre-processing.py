@@ -6,23 +6,36 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, La
 import requests
 import io
 
+st.set_page_config(page_title="Data Preprocessing", layout="wide", page_icon="🛠️")
+
 def load_css(filepath):
-    with open(filepath, "r") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open(filepath, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
 
 load_css("style.css")
-
-
-st.set_page_config(page_title="Data Preprocessing", layout="wide", page_icon="🛠️")
 st.title("🛠️ Data Preprocessing & Feature Engineering")
-st.markdown("Esplora, pulisci e trasforma il tuo dataset prima di addestrare un modello.")
+st.markdown("Esplora, pulisci e trasforma il tuo dataset. Le modifiche restano attive su tutto il sito.")
 
 def load_dataset():
-    if "df" in st.session_state:
+    if "df_pre" in st.session_state:
+        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}** *(con modifiche preprocessing)*")
+        col_a, col_b = st.columns(2)
+        if col_a.button("🔄 Cambia dataset"):
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        if col_b.button("↩️ Usa dataset originale"):
+            st.session_state.pop("df_pre", None)
+            st.rerun()
+        return st.session_state.df_pre
+    elif "df" in st.session_state:
         st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
         if st.button("🔄 Cambia dataset"):
-            del st.session_state["df"]
-            del st.session_state["filename"]
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
             st.rerun()
         return st.session_state.df
 
@@ -37,6 +50,8 @@ def load_dataset():
         uploaded = st.file_uploader("Carica CSV", type="csv")
         if uploaded:
             df = pd.read_csv(uploaded)
+            df = df.replace("?", pd.NA)
+            df = df.apply(pd.to_numeric, errors="ignore")
             st.session_state.filename = uploaded.name
 
     elif source == "📦 Libreria ISLP":
@@ -50,6 +65,8 @@ def load_dataset():
             try:
                 from ISLP import load_data
                 df = load_data(choice)
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = f"{choice}.csv"
             except ImportError:
                 st.error("Libreria ISLP non installata. Esegui: pip install ISLP")
@@ -57,16 +74,16 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input(
-            "Incolla URL del file CSV",
-            placeholder="https://raw.githubusercontent.com/.../file.csv"
-        )
+        url = st.text_input("Incolla URL del file CSV",
+                            placeholder="https://raw.githubusercontent.com/.../file.csv")
         st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
         if url and st.button("Carica da URL"):
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 df = pd.read_csv(io.StringIO(response.text))
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = url.split("/")[-1] or "dataset.csv"
             except requests.exceptions.HTTPError as e:
                 st.error(f"Errore HTTP: {e}")
@@ -84,7 +101,6 @@ if df_loaded is None:
     st.info("⬆️ Carica un dataset per iniziare.")
     st.stop()
 
-# Copia locale per preprocessing (non sovrascrive il df globale finché non si vuole)
 if "df_pre" not in st.session_state or st.session_state.get("pre_filename") != st.session_state.get("filename"):
     st.session_state.df_pre = df_loaded.copy()
     st.session_state.pre_filename = st.session_state.get("filename")
@@ -94,11 +110,14 @@ df = st.session_state.df_pre
 code_log = st.session_state.code_log
 
 st.success(f"✅ {st.session_state.get('filename', 'dataset')} — {df.shape[0]} righe × {df.shape[1]} colonne")
+st.caption("💡 Le modifiche applicate qui saranno visibili anche nelle pagine Supervised e Unsupervised.")
 
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Esplorazione", "🧹 Pulizia", "🔧 Trasformazioni", "⬇️ Export"])
 
 with tab1:
     st.subheader("Anteprima dataset")
+    st.dataframe(df.head(100), use_container_width=True)
+
     st.subheader("Tipi di dato per colonna")
     dtype_df = pd.DataFrame({
         "Colonna": df.columns,
@@ -108,9 +127,9 @@ with tab1:
     })
     st.dataframe(dtype_df, use_container_width=True, hide_index=True)
 
-    st.dataframe(df.head(100), use_container_width=True)
     st.subheader("Statistiche descrittive")
     st.dataframe(df.describe(include="all").T, use_container_width=True)
+
     st.subheader("Valori nulli per colonna")
     null_df = pd.DataFrame({"Colonna": df.columns, "Nulli": df.isnull().sum().values,
                              "% Nulli": (df.isnull().mean().values * 100).round(2)})
@@ -121,6 +140,7 @@ with tab1:
         fig_null = px.bar(null_df[null_df["Nulli"] > 0], x="Colonna", y="% Nulli",
                           title="Percentuale valori nulli", text_auto=True)
         st.plotly_chart(fig_null, use_container_width=True)
+
     st.subheader("Distribuzione colonne")
     col_explore = st.selectbox("Seleziona colonna", df.columns, key="explore_col")
     if pd.api.types.is_numeric_dtype(df[col_explore]):
@@ -130,6 +150,7 @@ with tab1:
         vc.columns = [col_explore, "count"]
         fig_dist = px.bar(vc, x=col_explore, y="count", title=f"Distribuzione — {col_explore}")
     st.plotly_chart(fig_dist, use_container_width=True)
+
     st.subheader("Heatmap correlazione")
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
     if len(numeric_cols) >= 2:
@@ -235,7 +256,7 @@ with tab3:
             scaler = scalers[scale_type]
             st.session_state.df_pre[cols_scale] = scaler.fit_transform(st.session_state.df_pre[cols_scale])
             code_log.append(f"from sklearn.preprocessing import {scale_type}\nscaler = {scale_type}()\ndf[{cols_scale}] = scaler.fit_transform(df[{cols_scale}])")
-            st.success(f"✅ {scale_type} applicato su: {', '.join(cols_scale)}")
+            st.success(f"✅ {scale_type} applicato.")
             st.rerun()
     st.divider()
     st.subheader("📉 Log Transform")
@@ -245,7 +266,7 @@ with tab3:
         if st.button("Applica Log Transform"):
             d = st.session_state.df_pre
             if (d[col_log] <= 0).any():
-                st.warning("⚠️ Valori ≤ 0 trovati: verrà usato log1p(x+1).")
+                st.warning("⚠️ Valori ≤ 0: verrà usato log1p.")
                 st.session_state.df_pre[col_log] = np.log1p(d[col_log])
                 code_log.append(f"df['{col_log}'] = np.log1p(df['{col_log}'])")
             else:
@@ -254,7 +275,7 @@ with tab3:
             st.success(f"✅ Log transform applicato su '{col_log}'.")
             st.rerun()
     st.divider()
-    st.subheader("🪣 Binning (numerico → categorie)")
+    st.subheader("🪣 Binning")
     num_cols3 = df.select_dtypes(include="number").columns.tolist()
     if num_cols3:
         col_bin = st.selectbox("Colonna da binnare", num_cols3, key="bin_col")
@@ -286,7 +307,7 @@ with tab3:
             st.success(f"✅ '{col_cast}' convertita in {cast_type}.")
             st.rerun()
         except Exception as e:
-            st.error(f"Errore nella conversione: {e}")
+            st.error(f"Errore: {e}")
 
 with tab4:
     st.subheader("📋 Dataset attuale")

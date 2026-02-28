@@ -2,36 +2,51 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from scipy import stats
+import plotly.graph_objects as go
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler, LabelEncoder, label_binarize
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score,
-    confusion_matrix, mean_squared_error, r2_score, mean_absolute_error)
+    confusion_matrix, mean_squared_error, r2_score, mean_absolute_error,
+    roc_curve, auc)
+from scipy import stats
 import joblib
 import requests
 import io
 
+st.set_page_config(page_title="Supervised Learning", layout="wide", page_icon="🤖")
+
 def load_css(filepath):
-    with open(filepath, "r") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open(filepath, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
 
 load_css("style.css")
-
-
-st.set_page_config(page_title="Supervised Learning", layout="wide", page_icon="🤖")
 st.title("🤖 Supervised Learning")
 st.markdown("Carica un dataset, scegli le feature, il target e il modello da addestrare.")
 
 def load_dataset():
-    if "df" in st.session_state:
+    if "df_pre" in st.session_state:
+        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}** *(con modifiche preprocessing)*")
+        col_a, col_b = st.columns(2)
+        if col_a.button("🔄 Cambia dataset"):
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        if col_b.button("↩️ Usa dataset originale"):
+            st.session_state.pop("df_pre", None)
+            st.rerun()
+        return st.session_state.df_pre
+    elif "df" in st.session_state:
         st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
         if st.button("🔄 Cambia dataset"):
-            del st.session_state["df"]
-            del st.session_state["filename"]
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
             st.rerun()
         return st.session_state.df
 
@@ -46,6 +61,8 @@ def load_dataset():
         uploaded = st.file_uploader("Carica CSV", type="csv")
         if uploaded:
             df = pd.read_csv(uploaded)
+            df = df.replace("?", pd.NA)
+            df = df.apply(pd.to_numeric, errors="ignore")
             st.session_state.filename = uploaded.name
 
     elif source == "📦 Libreria ISLP":
@@ -59,6 +76,8 @@ def load_dataset():
             try:
                 from ISLP import load_data
                 df = load_data(choice)
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = f"{choice}.csv"
             except ImportError:
                 st.error("Libreria ISLP non installata. Esegui: pip install ISLP")
@@ -66,16 +85,16 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input(
-            "Incolla URL del file CSV",
-            placeholder="https://raw.githubusercontent.com/.../file.csv"
-        )
+        url = st.text_input("Incolla URL del file CSV",
+                            placeholder="https://raw.githubusercontent.com/.../file.csv")
         st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
         if url and st.button("Carica da URL"):
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 df = pd.read_csv(io.StringIO(response.text))
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = url.split("/")[-1] or "dataset.csv"
             except requests.exceptions.HTTPError as e:
                 st.error(f"Errore HTTP: {e}")
@@ -100,20 +119,10 @@ with st.expander("🔍 Anteprima dati", expanded=False):
 
 st.divider()
 
-# DOPO (corretto)
 all_cols = df.columns.tolist()
 col1, col2 = st.columns(2)
-feature_cols = col1.multiselect(
-    "📥 Feature (X) — seleziona più colonne",
-    all_cols,
-    default=all_cols[:-1]
-)
-target_col = col2.selectbox(
-    "🎯 Target (Y) — una sola colonna",
-    [c for c in all_cols if c not in feature_cols],
-    index=0
-)
-
+feature_cols = col1.multiselect("📥 Feature (X)", all_cols, default=all_cols[:-1])
+target_col = col2.selectbox("🎯 Target (Y)", [c for c in all_cols if c not in feature_cols], index=0)
 
 if not feature_cols:
     st.warning("Seleziona almeno una feature.")
@@ -130,6 +139,7 @@ else:
 
 test_size = col4.slider("Test set size", min_value=0.1, max_value=0.5, value=0.2, step=0.05)
 normalize = st.checkbox("Normalizza feature (StandardScaler)", value=True)
+chart_height = st.slider("Altezza grafici (px)", min_value=300, max_value=900, value=500, step=50)
 
 st.divider()
 
@@ -157,7 +167,7 @@ if st.button("🚀 Addestra modello", use_container_width=True):
         models_clf = {
             "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
             "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
-            "SVM": SVC(random_state=42),
+            "SVM": SVC(probability=True, random_state=42),
             "KNN": KNeighborsClassifier()
         }
         models_reg = {
@@ -181,24 +191,71 @@ if st.button("🚀 Addestra modello", use_container_width=True):
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Accuracy", f"{acc:.4f}")
             m2.metric("F1 (weighted)", f"{f1:.4f}")
-            m3.metric("Precision (weighted)", f"{prec:.4f}")
-            m4.metric("Recall (weighted)", f"{rec:.4f}")
+            m3.metric("Precision", f"{prec:.4f}")
+            m4.metric("Recall", f"{rec:.4f}")
 
+            # Confusion Matrix
             cm = confusion_matrix(y_test, y_pred)
             labels = le_target.classes_.tolist() if le_target else list(map(str, sorted(set(y_test))))
             fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels,
                                color_continuous_scale="Blues", title="Confusion Matrix",
-                               labels=dict(x="Predicted", y="Actual"))
+                               labels=dict(x="Predicted", y="Actual"), height=chart_height)
             st.plotly_chart(fig_cm, use_container_width=True)
 
+            # ROC-AUC
+            classes = np.unique(y_test)
+            n_classes = len(classes)
+            try:
+                if hasattr(model, "predict_proba"):
+                    y_score = model.predict_proba(X_test)
+                elif hasattr(model, "decision_function"):
+                    y_score = model.decision_function(X_test)
+                else:
+                    y_score = None
+
+                if y_score is not None:
+                    st.subheader("📈 Curva ROC-AUC")
+                    fig_roc = go.Figure()
+
+                    if n_classes == 2:
+                        prob = y_score[:, 1] if y_score.ndim > 1 else y_score
+                        fpr, tpr, _ = roc_curve(y_test, prob)
+                        roc_auc = auc(fpr, tpr)
+                        fig_roc.add_trace(go.Scatter(x=fpr, y=tpr, mode="lines",
+                            name=f"AUC = {roc_auc:.4f}", line=dict(width=2)))
+                    else:
+                        y_bin = label_binarize(y_test, classes=classes)
+                        for i, cls in enumerate(classes):
+                            fpr, tpr, _ = roc_curve(y_bin[:, i], y_score[:, i])
+                            roc_auc = auc(fpr, tpr)
+                            lbl = le_target.classes_[cls] if le_target else str(cls)
+                            fig_roc.add_trace(go.Scatter(x=fpr, y=tpr, mode="lines",
+                                name=f"{lbl} (AUC={roc_auc:.3f})", line=dict(width=2)))
+
+                    fig_roc.add_shape(type="line", x0=0, y0=0, x1=1, y1=1,
+                                      line=dict(dash="dash", color="gray"))
+                    fig_roc.update_layout(
+                        template="plotly_white",
+                        xaxis_title="False Positive Rate",
+                        yaxis_title="True Positive Rate",
+                        title="ROC Curve",
+                        height=chart_height,
+                        legend=dict(orientation="h")
+                    )
+                    st.plotly_chart(fig_roc, use_container_width=True)
+            except Exception as roc_err:
+                st.warning(f"ROC non disponibile: {roc_err}")
+
+            # Feature Importance
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
-                st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance"), use_container_width=True)
+                st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
+                                       height=chart_height), use_container_width=True)
 
             code = f"""import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_curve, auc
 
 df = pd.read_csv("your_file.csv").dropna()
 X = df[{feature_cols}]
@@ -214,9 +271,7 @@ model = {model.__class__.__name__}()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 print("Accuracy:", accuracy_score(y_test, y_pred))
-print("F1:", f1_score(y_test, y_pred, average="weighted"))
-print("Precision:", precision_score(y_test, y_pred, average="weighted"))
-print("Recall:", recall_score(y_test, y_pred, average="weighted"))"""
+print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
 
         else:
             mse  = mean_squared_error(y_test, y_pred)
@@ -224,14 +279,15 @@ print("Recall:", recall_score(y_test, y_pred, average="weighted"))"""
             mae  = mean_absolute_error(y_test, y_pred)
             r2   = r2_score(y_test, y_pred)
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("MSE",      f"{mse:.4f}")
-            m2.metric("RMSE",     f"{rmse:.4f}")
-            m3.metric("MAE",      f"{mae:.4f}")
+            m1.metric("MSE", f"{mse:.4f}")
+            m2.metric("RMSE", f"{rmse:.4f}")
+            m3.metric("MAE", f"{mae:.4f}")
             m4.metric("R² Score", f"{r2:.4f}")
 
             residuals = np.array(y_test) - np.array(y_pred)
             fig_res = px.scatter(x=y_pred, y=residuals,
-                                 labels={"x": "Predicted", "y": "Residuals"}, title="Residual Plot")
+                                 labels={"x": "Predicted", "y": "Residuals"},
+                                 title="Residual Plot", height=chart_height)
             fig_res.add_hline(y=0, line_dash="dash", line_color="red")
             st.plotly_chart(fig_res, use_container_width=True)
 
@@ -239,32 +295,25 @@ print("Recall:", recall_score(y_test, y_pred, average="weighted"))"""
             std_res  = float(np.std(residuals))
             x_range  = np.linspace(mean_res - 4*std_res, mean_res + 4*std_res, 200)
             y_norm   = stats.norm.pdf(x_range, mean_res, std_res)
-            fig_dist = px.histogram(
-                x=residuals, nbins=30, histnorm="probability density",
-                title=f"Distribuzione residui  —  μ = {mean_res:.4f},  σ = {std_res:.4f}",
-                labels={"x": "Residuo", "y": "Densità"}
-            )
+            fig_dist = px.histogram(x=residuals, nbins=30, histnorm="probability density",
+                title=f"Distribuzione residui — μ={mean_res:.4f}, σ={std_res:.4f}",
+                labels={"x": "Residuo", "y": "Densità"}, height=chart_height)
             fig_dist.add_scatter(x=x_range, y=y_norm, mode="lines",
                                  name="Curva normale", line=dict(width=2))
             fig_dist.add_vline(x=mean_res, line_dash="dash",
-                               annotation_text=f"μ = {mean_res:.4f}",
-                               annotation_position="top right")
+                               annotation_text=f"μ={mean_res:.4f}", annotation_position="top right")
             fig_dist.update_layout(template="plotly_white")
             st.plotly_chart(fig_dist, use_container_width=True)
 
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
-                st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance"), use_container_width=True)
+                st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
+                                       height=chart_height), use_container_width=True)
 
-            if model_name == "Random Forest":
-                imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
-                st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance"), use_container_width=True)
-
-            code = f"""import pandas as pd
+            code = f"""import pandas as pd, numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-import numpy as np
 
 df = pd.read_csv("your_file.csv").dropna()
 X = df[{feature_cols}]
@@ -275,10 +324,9 @@ X_train, X_test = scaler.fit_transform(X_train), scaler.transform(X_test)
 model = {model.__class__.__name__}()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
-print("MSE:",  mean_squared_error(y_test, y_pred))
+print("MSE:", mean_squared_error(y_test, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(y_test, y_pred)))
-print("MAE:",  mean_absolute_error(y_test, y_pred))
-print("R2:",   r2_score(y_test, y_pred))"""
+print("R2:", r2_score(y_test, y_pred))"""
 
         st.divider()
         st.subheader("⬇️ Esporta")

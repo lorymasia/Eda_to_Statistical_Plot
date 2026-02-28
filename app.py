@@ -5,25 +5,36 @@ import plotly.graph_objects as go
 import requests
 import io
 
+st.set_page_config(page_title="CSV → Grafico", layout="wide", page_icon="📊")
+
 def load_css(filepath):
-    with open(filepath, "r") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open(filepath, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
 
 load_css("style.css")
-
-
-st.set_page_config(page_title="CSV → Statistical Model", layout="wide", page_icon="📊")
-st.title("📊 CSV to Statistical Model")
+st.title("📊 CSV to Chart")
 st.markdown("Carica un dataset, scegli colonne e tipo di grafico, esporta e ottieni il codice Python.")
 
-# ── Funzione caricamento dataset ──────────────────────────────────────────────
 def load_dataset():
-    # Se il dataset è già in sessione, lo usa direttamente
-    if "df" in st.session_state:
+    if "df_pre" in st.session_state:
+        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}** *(con modifiche preprocessing)*")
+        col_a, col_b = st.columns(2)
+        if col_a.button("🔄 Cambia dataset"):
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        if col_b.button("↩️ Usa dataset originale"):
+            st.session_state.pop("df_pre", None)
+            st.rerun()
+        return st.session_state.df_pre
+    elif "df" in st.session_state:
         st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
         if st.button("🔄 Cambia dataset"):
-            del st.session_state["df"]
-            del st.session_state["filename"]
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
             st.rerun()
         return st.session_state.df
 
@@ -38,6 +49,8 @@ def load_dataset():
         uploaded = st.file_uploader("Carica CSV", type="csv")
         if uploaded:
             df = pd.read_csv(uploaded)
+            df = df.replace("?", pd.NA)
+            df = df.apply(pd.to_numeric, errors="ignore")
             st.session_state.filename = uploaded.name
 
     elif source == "📦 Libreria ISLP":
@@ -51,6 +64,8 @@ def load_dataset():
             try:
                 from ISLP import load_data
                 df = load_data(choice)
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = f"{choice}.csv"
             except ImportError:
                 st.error("Libreria ISLP non installata. Esegui: pip install ISLP")
@@ -58,31 +73,28 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input(
-            "Incolla URL del file CSV",
-            placeholder="https://raw.githubusercontent.com/.../file.csv"
-        )
+        url = st.text_input("Incolla URL del file CSV",
+                            placeholder="https://raw.githubusercontent.com/.../file.csv")
         st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
         if url and st.button("Carica da URL"):
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 df = pd.read_csv(io.StringIO(response.text))
+                df = df.replace("?", pd.NA)
+                df = df.apply(pd.to_numeric, errors="ignore")
                 st.session_state.filename = url.split("/")[-1] or "dataset.csv"
             except requests.exceptions.HTTPError as e:
                 st.error(f"Errore HTTP: {e}")
             except Exception as e:
                 st.error(f"Errore: {e}")
 
-    # Salva in sessione appena caricato
     if df is not None:
         st.session_state.df = df
         st.rerun()
 
     return df
 
-
-# ── Caricamento ───────────────────────────────────────────────────────────────
 df = load_dataset()
 if df is None:
     st.info("⬆️ Carica un dataset per iniziare.")
@@ -94,57 +106,80 @@ st.success(f"✅ {selected_file} — {df.shape[0]} righe × {df.shape[1]} colonn
 with st.expander("🔍 Anteprima dati", expanded=False):
     st.dataframe(df.head(50), use_container_width=True)
     st.caption(f"{df.shape[0]} righe × {df.shape[1]} colonne")
+    
+    st.markdown("**Tipi di dato per colonna:**")
+    dtype_df = pd.DataFrame({
+        "Colonna": df.columns,
+        "Tipo": df.dtypes.values.astype(str),
+        "Valori unici": df.nunique().values,
+        "Nulli": df.isnull().sum().values,
+        "Esempio": [df[col].dropna().iloc[0] if not df[col].dropna().empty else "N/A" for col in df.columns]
+    })
+    st.dataframe(dtype_df, use_container_width=True, hide_index=True)
+
 
 st.divider()
 
 # ── Chart config ──────────────────────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
-
-chart_type = col1.selectbox(
-    "Tipo di grafico",
-    ["Line", "Bar", "Scatter", "Heatmap", "Histogram", "Box", "Area"]
-)
+chart_type = col1.selectbox("Tipo di grafico",
+    ["Line", "Bar", "Scatter", "Heatmap", "Histogram", "Box", "Area", "Scatter Matrix"])
 
 numeric_cols = df.select_dtypes(include="number").columns.tolist()
 all_cols = df.columns.tolist()
+cat_cols = [c for c in all_cols if c not in numeric_cols]
 
-st.markdown("""
-    <style>
-    div[data-testid="stMultiSelect"] input {
-        pointer-events: none !important;
-        caret-color: transparent !important;
-        user-select: none !important;
-    }
-    div[data-testid="stMultiSelect"] [data-baseweb="input"] {
-        cursor: pointer !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+chart_height = st.slider("Altezza grafico (px)", min_value=300, max_value=1200, value=500, step=50)
 
 if chart_type == "Heatmap":
     selected_cols = col2.multiselect("Colonne numeriche (heatmap)", numeric_cols,
         default=numeric_cols[:min(6, len(numeric_cols))])
     x_col, y_cols, color_col = None, None, None
+    use_facet = False
+
 elif chart_type == "Histogram":
     x_col = col2.selectbox("Colonna (X)", numeric_cols)
     color_col = col3.selectbox("Colore (opzionale)", ["Nessuno"] + all_cols)
     y_cols, selected_cols = None, None
+    use_facet = False
+
+elif chart_type == "Scatter Matrix":
+    selected_cols = col2.multiselect("Colonne (scatter matrix)", numeric_cols,
+        default=numeric_cols[:min(4, len(numeric_cols))])
+    color_col = col3.selectbox("Colore per categoria (opzionale)", ["Nessuno"] + all_cols)
+    x_col, y_cols = None, None
+    use_facet = False
+
 else:
     col_x, col_y = st.columns(2)
     x_col = col_x.selectbox("Asse X", all_cols, index=0)
-    y_cols = [col_y.selectbox("Asse Y", [c for c in numeric_cols if c != x_col], index=0)]
+    y_options = [c for c in numeric_cols if c != x_col]
+    y_cols = [col_y.selectbox("Asse Y", y_options if y_options else numeric_cols)]
     color_col = st.selectbox("Colore per categoria (opzionale)", ["Nessuno"] + all_cols)
     selected_cols = None
 
+    # ── Facet come opzione aggiuntiva ─────────────────────────────────────────
+    use_facet = st.checkbox("🔲 Abilita Facet (suddividi il grafico per categoria)")
+    facet_col, facet_row = None, None
+    if use_facet:
+        if not cat_cols:
+            st.warning("Nessuna colonna categorica disponibile per il facet.")
+            use_facet = False
+        else:
+            fc1, fc2 = st.columns(2)
+            facet_col_sel = fc1.selectbox("Facet per colonna", ["Nessuno"] + cat_cols)
+            facet_row_sel = fc2.selectbox("Facet per riga (opzionale)", ["Nessuno"] + cat_cols)
+            facet_col = facet_col_sel if facet_col_sel != "Nessuno" else None
+            facet_row = facet_row_sel if facet_row_sel != "Nessuno" else None
+
 st.divider()
 
-# ── Build figure ──────────────────────────────────────────────────────────────
 code_lines = [
     "import pandas as pd",
     "import plotly.express as px",
     "import plotly.graph_objects as go",
     "",
-    f"df = pd.read_csv('{selected_file}')",
+    f"df = pd.read_csv(\"{selected_file}\")",
     "",
 ]
 
@@ -155,22 +190,28 @@ try:
             st.warning("Seleziona almeno due colonne per la heatmap.")
             st.stop()
         corr = df[selected_cols].corr()
-        fig = px.imshow(
-            corr, text_auto=".2f",
-            color_continuous_scale="RdBu_r",
-            title="Heatmap di correlazione"
-        )
-        code_lines += [
-            f"selected_cols = {selected_cols}",
-            "corr = df[selected_cols].corr()",
-            "fig = px.imshow(corr, text_auto='.2f', color_continuous_scale='RdBu_r')",
-        ]
+        fig = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r",
+                        title="Heatmap di correlazione", height=chart_height)
+        code_lines += [f"selected_cols = {selected_cols}", "corr = df[selected_cols].corr()",
+                       "fig = px.imshow(corr, text_auto='.2f', color_continuous_scale='RdBu_r')"]
 
     elif chart_type == "Histogram":
         kw = {} if color_col == "Nessuno" else {"color": color_col}
-        fig = px.histogram(df, x=x_col, **kw, title=f"Histogram – {x_col}")
+        fig = px.histogram(df, x=x_col, **kw, title=f"Histogram – {x_col}", height=chart_height)
         color_str = f", color='{color_col}'" if color_col != "Nessuno" else ""
         code_lines += [f"fig = px.histogram(df, x='{x_col}'{color_str})"]
+
+    elif chart_type == "Scatter Matrix":
+        if not selected_cols or len(selected_cols) < 2:
+            st.warning("Seleziona almeno due colonne.")
+            st.stop()
+        kw = {} if color_col == "Nessuno" else {"color": color_col}
+        fig = px.scatter_matrix(df, dimensions=selected_cols, **kw,
+                                title="Scatter Matrix", height=chart_height)
+        fig.update_traces(diagonal_visible=False)
+        color_str = f", color='{color_col}'" if color_col != "Nessuno" else ""
+        code_lines += [f"fig = px.scatter_matrix(df, dimensions={selected_cols}{color_str})",
+                       "fig.update_traces(diagonal_visible=False)"]
 
     else:
         if not y_cols:
@@ -180,63 +221,52 @@ try:
         color_kw = {} if color_col == "Nessuno" else {"color": color_col}
         color_str = f", color='{color_col}'" if color_col != "Nessuno" else ""
         df_plot = df.sort_values(by=x_col) if x_col else df
+        y = y_cols[0]
 
-        if len(y_cols) == 1:
-            y = y_cols[0]
-            if chart_type == "Line":
-                fig = px.line(df_plot, x=x_col, y=y, **color_kw, title=f"Line – {y} vs {x_col}")
-                code_lines += [f"fig = px.line(df, x='{x_col}', y='{y}'{color_str})"]
-            elif chart_type == "Bar":
-                use_count = st.checkbox("Usa conteggio (count) come Y", value=False)
-                if use_count:
-                    df_count = df[x_col].value_counts().reset_index()
-                    df_count.columns = [x_col, "count"]
-                    fig = px.bar(df_count, x=x_col, y="count",
-                                title=f"Bar – count di {x_col}")
-                    code_lines += [
-                        f"df_count = df['{x_col}'].value_counts().reset_index()",
-                        f"df_count.columns = ['{x_col}', 'count']",
-                        f"fig = px.bar(df_count, x='{x_col}', y='count')"
-                    ]
-                else:
-                    agg_func = st.selectbox("Aggregazione", ["mean", "sum", "median", "min", "max"])
-                    df_grouped = df.groupby(x_col)[y].agg(agg_func).reset_index()
-                    fig = px.bar(df_grouped, x=x_col, y=y, **color_kw,
-                                title=f"Bar – {agg_func}({y}) per {x_col}")
-                    code_lines += [
-                        f"df_grouped = df.groupby('{x_col}')['{y}'].agg('{agg_func}').reset_index()",
-                        f"fig = px.bar(df_grouped, x='{x_col}', y='{y}')"
-                    ]
+        # Facet kwargs
+        facet_kw = {}
+        facet_str = ""
+        if use_facet:
+            if facet_col: facet_kw["facet_col"] = facet_col; facet_str += f", facet_col='{facet_col}'"
+            if facet_row: facet_kw["facet_row"] = facet_row; facet_str += f", facet_row='{facet_row}'"
 
-            elif chart_type == "Scatter":
-                fig = px.scatter(df_plot, x=x_col, y=y, **color_kw, title=f"Scatter – {y} vs {x_col}")
-                code_lines += [f"fig = px.scatter(df, x='{x_col}', y='{y}'{color_str})"]
-            elif chart_type == "Area":
-                fig = px.area(df_plot, x=x_col, y=y, **color_kw, title=f"Area – {y} vs {x_col}")
-                code_lines += [f"fig = px.area(df, x='{x_col}', y='{y}'{color_str})"]
-            elif chart_type == "Box":
-                fig = px.box(df_plot, x=x_col, y=y, **color_kw, title=f"Box – {y}")
-                code_lines += [f"fig = px.box(df, x='{x_col}', y='{y}'{color_str})"]
-        else:
-            fig = go.Figure()
-            for y in y_cols:
-                if chart_type in ["Line", "Area"]:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot[x_col], y=df_plot[y], mode="lines", name=y,
-                        fill="tozeroy" if chart_type == "Area" else None
-                    ))
-                elif chart_type == "Bar":
-                    fig.add_trace(go.Bar(x=df_plot[x_col], y=df_plot[y], name=y))
-                elif chart_type == "Scatter":
-                    fig.add_trace(go.Scatter(x=df_plot[x_col], y=df_plot[y], mode="markers", name=y))
-                elif chart_type == "Box":
-                    fig.add_trace(go.Box(y=df_plot[y], name=y))
-            fig.update_layout(title=f"{chart_type} – {x_col}")
-            code_lines += [
-                "fig = go.Figure()",
-                f"for y in {y_cols}:",
-                f"    fig.add_trace(go.Scatter(x=df['{x_col}'], y=df[y], mode='lines', name=y))",
-            ]
+        if chart_type == "Line":
+            fig = px.line(df_plot, x=x_col, y=y, **color_kw, **facet_kw,
+                          title=f"Line – {y} vs {x_col}", height=chart_height)
+            code_lines += [f"fig = px.line(df, x='{x_col}', y='{y}'{color_str}{facet_str})"]
+
+        elif chart_type == "Bar":
+            use_count = st.checkbox("Usa conteggio (count) come Y", value=False)
+            if use_count:
+                df_count = df[x_col].value_counts().reset_index()
+                df_count.columns = [x_col, "count"]
+                fig = px.bar(df_count, x=x_col, y="count", title=f"Bar – count di {x_col}",
+                             height=chart_height)
+                code_lines += [f"df_count = df['{x_col}'].value_counts().reset_index()",
+                               f"df_count.columns = ['{x_col}', 'count']",
+                               f"fig = px.bar(df_count, x='{x_col}', y='count')"]
+            else:
+                agg_func = st.selectbox("Aggregazione", ["mean", "sum", "median", "min", "max"])
+                df_grouped = df.groupby(x_col)[y].agg(agg_func).reset_index()
+                fig = px.bar(df_grouped, x=x_col, y=y, **color_kw, **facet_kw,
+                             title=f"Bar – {agg_func}({y}) per {x_col}", height=chart_height)
+                code_lines += [f"df_grouped = df.groupby('{x_col}')['{y}'].agg('{agg_func}').reset_index()",
+                               f"fig = px.bar(df_grouped, x='{x_col}', y='{y}'{color_str}{facet_str})"]
+
+        elif chart_type == "Scatter":
+            fig = px.scatter(df_plot, x=x_col, y=y, **color_kw, **facet_kw,
+                             title=f"Scatter – {y} vs {x_col}", height=chart_height)
+            code_lines += [f"fig = px.scatter(df, x='{x_col}', y='{y}'{color_str}{facet_str})"]
+
+        elif chart_type == "Area":
+            fig = px.area(df_plot, x=x_col, y=y, **color_kw, **facet_kw,
+                          title=f"Area – {y} vs {x_col}", height=chart_height)
+            code_lines += [f"fig = px.area(df, x='{x_col}', y='{y}'{color_str}{facet_str})"]
+
+        elif chart_type == "Box":
+            fig = px.box(df_plot, x=x_col, y=y, **color_kw, **facet_kw,
+                         title=f"Box – {y}", height=chart_height)
+            code_lines += [f"fig = px.box(df, x='{x_col}', y='{y}'{color_str}{facet_str})"]
 
     fig.update_layout(template="plotly_white", legend=dict(orientation="h"))
     code_lines.append("fig.show()")
@@ -245,33 +275,18 @@ except Exception as e:
     st.error(f"Errore nella generazione del grafico: {e}")
     st.stop()
 
-# ── Mostra grafico ────────────────────────────────────────────────────────────
 st.plotly_chart(fig, use_container_width=True)
 
-# ── Export ────────────────────────────────────────────────────────────────────
 st.subheader("⬇️ Esporta")
 ecol1, ecol2 = st.columns(2)
-
 try:
     img_bytes = fig.to_image(format="png", scale=2)
-    ecol1.download_button(
-        label="📥 Scarica PNG",
-        data=img_bytes,
-        file_name="grafico.png",
-        mime="image/png"
-    )
+    ecol1.download_button("📥 Scarica PNG", data=img_bytes, file_name="grafico.png", mime="image/png")
 except Exception:
-    ecol1.info("Install `kaleido` per export PNG: `pip install kaleido`")
-
+    ecol1.info("Install `kaleido` per export PNG.")
 html_bytes = fig.to_html(include_plotlyjs="cdn").encode("utf-8")
-ecol2.download_button(
-    label="📥 Scarica HTML",
-    data=html_bytes,
-    file_name="grafico.html",
-    mime="text/html"
-)
+ecol2.download_button("📥 Scarica HTML", data=html_bytes, file_name="grafico.html", mime="text/html")
 
-# ── Codice Python ─────────────────────────────────────────────────────────────
 st.divider()
 st.subheader("🐍 Codice Python equivalente")
 st.code("\n".join(code_lines), language="python")
