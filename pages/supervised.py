@@ -284,6 +284,34 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
             m3.metric("MAE", f"{mae:.4f}")
             m4.metric("R² Score", f"{r2:.4f}")
 
+            if model_name in ["Linear Regression", "Ridge Regression"]:
+                st.subheader("📐 Coefficienti del modello")
+                
+                intercept = model.intercept_
+                coef_df = pd.DataFrame({
+                    "Feature": feature_cols,
+                    "Coefficiente": model.coef_
+                }).sort_values("Coefficiente", key=abs, ascending=False)
+                
+                col_i, col_c = st.columns(2)
+                col_i.metric("Intercetta (bias)", f"{intercept:.6f}")
+                
+                st.dataframe(coef_df, use_container_width=True, hide_index=True)
+                
+                # Grafico coefficienti
+                fig_coef = px.bar(
+                    coef_df, x="Coefficiente", y="Feature",
+                    orientation="h",
+                    title="Coefficienti del modello",
+                    color="Coefficiente",
+                    color_continuous_scale="RdBu",
+                    height=chart_height
+                )
+                fig_coef.add_vline(x=0, line_dash="dash", line_color="gray")
+                fig_coef.update_layout(template="plotly_white")
+                st.plotly_chart(fig_coef, use_container_width=True)
+
+
             residuals = np.array(y_test) - np.array(y_pred)
             fig_res = px.scatter(x=y_pred, y=residuals,
                                  labels={"x": "Predicted", "y": "Residuals"},
