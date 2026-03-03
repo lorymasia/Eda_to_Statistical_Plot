@@ -114,7 +114,7 @@ if task == "K-Means":
     show_elbow = col4.checkbox("Mostra Elbow Method", value=True)
 else:
     col3, col4 = st.columns(2)
-    eps = col3.slider("eps (raggio)", min_value=0.1, max_value=5.0, value=0.5, step=0.1)
+    eps = col3.slider("eps (raggio)", min_value=0.05, max_value=5.0, value=0.5, step=0.05)
     min_samples = col4.slider("min_samples", min_value=2, max_value=20, value=5)
 
 col5, col6 = st.columns(2)
@@ -143,16 +143,28 @@ if st.button("🚀 Esegui clustering", use_container_width=True):
 
         model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10) if task == "K-Means" else DBSCAN(eps=eps, min_samples=min_samples)
         labels = model.fit_predict(X_scaled)
+
         data = data.copy()
         data["Cluster"] = labels.astype(str)
-
+        labels_display = np.where(labels == -1, "Rumore", (labels + 1).astype(str))
+        data = data.copy()
+        data["Cluster"] = labels_display
         unique_labels = set(labels)
         if len(unique_labels) > 1 and not (unique_labels == {-1}):
             try:
-                sil = silhouette_score(X_scaled, labels)
-                st.metric("Silhouette Score", f"{sil:.4f}")
+                # Escludi i punti rumore (label == -1) per DBSCAN
+                mask = labels != -1
+                sil = silhouette_score(X_scaled[mask], labels[mask])
+                if mask.sum() > 1 and len(set(labels[mask])) > 1:
+                    sil = silhouette_score(X_scaled[mask], labels[mask])
+                    st.metric("Silhouette Score", f"{sil:.4f}")
+                    if task == "DBSCAN":
+                        st.caption(f"ℹ️ Calcolato su {mask.sum()} punti, esclusi {(~mask).sum()} noise points")
+                else:
+                    st.warning("Troppo pochi punti validi per calcolare il Silhouette Score.")
             except Exception:
                 pass
+
 
         if task == "DBSCAN":
             n_noise = (labels == -1).sum()
@@ -165,15 +177,15 @@ if st.button("🚀 Esegui clustering", use_container_width=True):
             perplexity = min(30, len(X_scaled) - 1)
             coords = TSNE(n_components=2, random_state=42, perplexity=perplexity).fit_transform(X_scaled)
 
-        plot_df = pd.DataFrame(coords, columns=["Dim1", "Dim2"])
-        plot_df["Cluster"] = labels.astype(str)
+        plot_df = pd.DataFrame(coords, columns=["PC1", "PC2"])
+        plot_df["Cluster"] = labels_display
 
         if color_col != "Nessuno" and color_col in df.columns:
             plot_df[color_col] = df[color_col].values[:len(plot_df)]
-            fig_s = px.scatter(plot_df, x="Dim1", y="Dim2", color="Cluster", symbol=color_col,
+            fig_s = px.scatter(plot_df, x="PC1", y="PC2", color="Cluster", symbol=color_col,
                                title=f"{viz_method} – Cluster", hover_data=[color_col])
         else:
-            fig_s = px.scatter(plot_df, x="Dim1", y="Dim2", color="Cluster", title=f"{viz_method} – Cluster")
+            fig_s = px.scatter(plot_df, x="PC1", y="PC2", color="Cluster", title=f"{viz_method} – Cluster")
         st.plotly_chart(fig_s, use_container_width=True)
 
         st.subheader("📋 Statistiche per cluster")
@@ -191,9 +203,9 @@ X_scaled = StandardScaler().fit_transform(X)
 model = {'KMeans(n_clusters=' + str(n_clusters) + ', random_state=42, n_init=10)' if task == 'K-Means' else 'DBSCAN(eps=' + str(eps) + ', min_samples=' + str(min_samples) + ')'}
 labels = model.fit_predict(X_scaled)
 coords = PCA(n_components=2).fit_transform(X_scaled)
-plot_df = pd.DataFrame(coords, columns=["Dim1", "Dim2"])
+plot_df = pd.DataFrame(coords, columns=["PC1", "PC2"])
 plot_df["Cluster"] = labels.astype(str)
-px.scatter(plot_df, x="Dim1", y="Dim2", color="Cluster").show()"""
+px.scatter(plot_df, x="PC1", y="PC2", color="Cluster").show()"""
 
         st.divider()
         st.subheader("🐍 Codice Python equivalente")
