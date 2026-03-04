@@ -233,6 +233,8 @@ if st.button("🚀 Addestra modello", use_container_width=True):
         st.subheader("📊 Risultati")
 
         if task_type == "classification":
+            le_target = LabelEncoder()
+            y = le_target.fit_transform(y.astype(str))
             acc  = accuracy_score(y_test, y_pred)
             f1   = f1_score(y_test, y_pred, average="weighted")
             prec = precision_score(y_test, y_pred, average="weighted", zero_division=0)
@@ -244,8 +246,8 @@ if st.button("🚀 Addestra modello", use_container_width=True):
             m4.metric("Recall", f"{rec:.4f}")
 
             # Confusion Matrix
-            cm = confusion_matrix(y_test, y_pred)
-            labels = le_target.classes_.tolist() if le_target else list(map(str, sorted(set(y_test))))
+            labels = le_target.classes_.tolist()
+            cm = confusion_matrix(y_test, y_pred, labels=list(range(len(labels))))
             fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels,
                                color_continuous_scale="Blues", title="Confusion Matrix",
                                labels=dict(x="Predicted", y="Actual"), height=chart_height)

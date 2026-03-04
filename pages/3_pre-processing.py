@@ -45,6 +45,7 @@ def load_dataset():
         horizontal=True
     )
     df = None
+    url = ""
 
     if source == "📂 Upload CSV":
         uploaded = st.file_uploader("Carica CSV", type="csv")
@@ -201,9 +202,27 @@ with tab1:
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
     if len(numeric_cols) >= 2:
         corr = df[numeric_cols].corr()
-        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r",
-                             title="Correlazione tra feature numeriche")
-        st.plotly_chart(fig_corr, width='stretch')
+        
+        n_cols = len(numeric_cols)
+        heatmap_size = max(400, n_cols * 100)
+        font_size = max(8, min(14, int(200 / n_cols)))
+        
+        fig_corr = px.imshow(
+            corr,
+            text_auto=".2f",
+            color_continuous_scale="RdBu_r",
+            title="Correlazione tra feature numeriche",
+            height=heatmap_size,
+            width=heatmap_size,
+            aspect="auto"
+        )
+        fig_corr.update_traces(textfont_size=font_size)
+        fig_corr.update_layout(
+            xaxis=dict(tickangle=-45, tickfont=dict(size=font_size)),
+            yaxis=dict(tickfont=dict(size=font_size)),
+            margin=dict(l=100, r=40, t=60, b=100)
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
     else:
         st.info("Servono almeno 2 colonne numeriche per la heatmap.")
 
