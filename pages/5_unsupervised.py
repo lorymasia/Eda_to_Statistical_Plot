@@ -36,6 +36,7 @@ def load_dataset():
         horizontal=True
     )
     df = None
+    url= ""
 
     if source == "📂 Upload CSV":
         uploaded = st.file_uploader("Carica CSV", type="csv")
