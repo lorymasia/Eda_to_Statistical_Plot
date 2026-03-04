@@ -1,4 +1,4 @@
-# 📊 Eda to Chart & ML Explorer
+# 📊 Eda to Chart & ML Models
 
 A multi-page web app built with **Streamlit** that lets you load a dataset, explore and preprocess it, generate interactive charts with **Plotly**, and train **Machine Learning** models — all without writing a single line of code.
 
