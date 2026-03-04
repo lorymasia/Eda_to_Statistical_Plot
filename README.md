@@ -1,91 +1,175 @@
-# 📊 Eda to Chart & ML Models
+# 📊 EDA to Chart & ML Models
 
-A multi-page web app built with **Streamlit** that lets you load a dataset, explore and preprocess it, generate interactive charts with **Plotly**, and train **Machine Learning** models — all without writing a single line of code.
+> Una web app completa e interattiva per l'analisi esplorativa dei dati, visualizzazione e machine learning — tutto in una sola applicazione.
 
-## Pages
+Una multi-pagina web app costruita con **Streamlit** che permette di caricare un dataset, esplorarlo e preprocessarlo, generare grafici interattivi con **Plotly**, e addestrare modelli di **Machine Learning** — il tutto senza scrivere codice.
+
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.0+-red.svg)](https://streamlit.io/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+---
+
+## ✨ Caratteristiche Principali
 
 ### 📊 CSV to Chart
-- Load a dataset and generate interactive charts
-- 7 chart types: Line, Bar, Scatter, Heatmap, Histogram, Box, Area
-- Bar chart with groupby aggregation (mean, sum, median, min, max) or simple count
-- Select X and Y axes from available columns
-- Optional color grouping by category
-- Export charts as **PNG** or interactive **HTML**
-- Automatic generation of the equivalent **Python code**
+Crea visualizzazioni interattive dai tuoi dati in pochi secondi:
+- **7 tipi di grafici**: Line, Bar, Scatter, Heatmap, Histogram, Box, Area
+- **Grafici a barre avanzati**: Raggruppamento (mean, sum, median, min, max) o semplice conteggio
+- **Personalizzazione**: Seleziona gli assi X e Y dalle colonne disponibili
+- **Colori per categorie**: Raggruppa i dati per colore
+- **Export multiplo**: Salva come **PNG** (immagini) o **HTML** (interattivi)
+- **Codice Python automatico**: Ottieni il codice equivalente per ogni grafico
 
 ### 🛠️ Data Preprocessing
-- Full dataset exploration: statistics, null values, distributions, correlation heatmap
-- Column data types overview (type, unique values, example)
-- Data cleaning: remove duplicates, handle null values (drop, fill with mean/median/mode/custom), drop columns, rename columns
-- Transformations: Label Encoding, One-Hot Encoding, StandardScaler / MinMaxScaler / RobustScaler, Log Transform, Binning, column type casting
-- Export the preprocessed dataset as CSV
-- Automatic generation of the full **Python preprocessing pipeline**
+Pulizia e trasformazione completa dei dati:
+- **Esplorazione dataset**: Statistiche, valori nulli, distribuzioni, heatmap correlazioni
+- **Panoramica tipi di dati**: Tipo, valori unici, esempi per ogni colonna
+- **Pulizia dati**:
+  - Rimozione duplicati
+  - Gestione valori nulli (drop, fill mean/median/mode/custom)
+  - Eliminazione colonne
+  - Rinominazione colonne
+- **Trasformazioni avanzate**:
+  - Label Encoding & One-Hot Encoding
+  - Normalizzazione: StandardScaler / MinMaxScaler / RobustScaler
+  - Log Transform
+  - Binning
+  - Type casting colonne
+- **Export CSV**: Scarica il dataset preprocessato
+- **Codice Python completo**: Pipeline di preprocessing automaticamente generato
 
 ### 🤖 Supervised Learning
-- Auto-detection of task type: **classification** or **regression**
-- Classification models: Random Forest, Logistic Regression, SVM, KNN
-- Regression models: Random Forest, Linear Regression, Ridge, SVR
-- Metrics — Classification: Accuracy, F1, Precision, Recall + Confusion Matrix
-- Metrics — Regression: MSE, RMSE, MAE, R² + Residual Plot + Residuals distribution with normal curve
-- Feature Importance chart (Random Forest)
-- Export trained model as **.pkl**
-- Automatic generation of the equivalent **Python code**
+Addestramento e valutazione di modelli supervisionati:
+- **Rilevamento automatico**: Classifica il task come classification o regression
+- **Modelli di Classificazione**: Random Forest, Logistic Regression, SVM, KNN
+- **Modelli di Regressione**: Random Forest, Linear Regression, Ridge, SVR
+- **Metriche di Classificazione**: Accuracy, F1, Precision, Recall + Confusion Matrix
+- **Metriche di Regressione**: MSE, RMSE, MAE, R² + Residual Plot + Distribuzione residui con curva normale
+- **Feature Importance**: Visualizzazione importanza feature (Random Forest)
+- **Export modello**: Salva il modello addestrato come **.pkl**
+- **Codice Python**: Generazione automatica del codice equivalente
 
 ### 🔍 Unsupervised Learning
-- Clustering algorithms: **K-Means** and **DBSCAN**
-- Elbow Method visualization for optimal K selection
-- Silhouette Score evaluation
-- 2D visualization via **PCA** or **t-SNE**
-- Cluster statistics per group
-- Export dataset with cluster labels as CSV
-- Automatic generation of the equivalent **Python code**
+Clustering e riduzione dimensionalità:
+- **Algoritmi di Clustering**: K-Means e DBSCAN
+- **Elbow Method**: Visualizzazione per selezionare K ottimale
+- **Silhouette Score**: Valutazione della qualità dei cluster
+- **Visualizzazione 2D**: PCA o t-SNE
+- **Statistiche cluster**: Analisi dettagliata per gruppo
+- **Export cluster**: Scarica dataset con etichette di cluster come CSV
+- **Codice Python**: Generazione automatica del codice equivalente
 
-## Dataset Sources
-All pages support three ways to load a dataset:
-- 📂 **Upload CSV** from your computer
-- 📦 **ISLP library** built-in datasets (Auto, Boston, Wage, etc.)
-- 🔗 **Direct URL** (e.g. raw GitHub or public CSV links)
+---
 
-The loaded dataset persists across all pages — no need to reload when switching.
+## 📂 Fonti Dati Supportate
 
-## Requirements
+Carica i tuoi dati in 3 modi:
+- **📂 Upload CSV**: Carica file dal tuo computer
+- **📦 Libreria ISLP**: Dataset built-in (Auto, Boston, Wage, ecc.)
+- **🔗 URL diretto**: Carica da GitHub raw o link CSV pubblici
 
-- Python 3.8+
+✅ **Il dataset caricato persiste** su tutte le pagine — non occorre ricaricare quando cambiate pagina.
+
+---
+
+## 🛠️ Requisiti
+
+- **Python 3.8+**
 - streamlit
 - pandas
 - plotly
 - kaleido
+- kaggle
 - scikit-learn
 - joblib
 - numpy
 - scipy
 - requests
-- ISLP *(optional)*
+- ISLP
 
-## Installation
+---
 
+## 📦 Installazione
+
+### 1. Clona il repository
+```bash
+git clone https://github.com/lorymasia/Eda_to_Statistical_Plot.git
+cd Eda_to_Statistical_Plot
+```
+
+### 2. Installa le dipendenze
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+---
+
+## 🚀 Uso
+
+Avvia l'applicazione Streamlit:
 
 ```bash
 streamlit run app.py
 ```
 
-Then open your browser at `http://localhost:8501`.
+---
 
-## Project Structure
+## 📁 Struttura del Progetto
 
 ```
-├── app.py                  # 📊 CSV to Chart
+Eda_to_Statistical_Plot/
+├── app.py                      # Pagina principale: CSV to Chart
 ├── pages/
-│   ├── 1_Preprocessing.py  # 🛠️ Data Preprocessing
-│   ├── 2_Supervised.py     # 🤖 Supervised Learning
-│   └── 3_Unsupervised.py   # 🔍 Unsupervised Learning
-├── style.css
-├── requirements.txt
+│   ├── 1_Preprocessing.py      # Data Preprocessing
+│   ├── 2_Supervised.py         # Supervised Learning
+│   └── 3_Unsupervised.py       # Unsupervised Learning
+├── style.css                   # Stili personalizzati
+├── requirements.txt            # Dipendenze Python
+├── .streamlit/                 # Configurazione Streamlit
 ├── .gitignore
-└── README.md
+└── README.md                   # Questo file
 ```
+
+---
+
+## 💡 Esempi di Utilizzo
+
+### Esempio 1: Analizzare una vendita dataset
+1. Vai su **CSV to Chart**
+2. Carica il tuo file CSV
+3. Seleziona X: "Date", Y: "Sales", Colore: "Category"
+4. Scegli "Line Chart"
+5. Esporta come PNG o HTML
+
+### Esempio 2: Pulire e addestrare un modello
+1. Vai su **Data Preprocessing**
+2. Carica il dataset
+3. Rimuovi valori nulli e normalizza
+4. Esporta il dataset pulito
+5. Vai su **Supervised Learning**
+6. Carica il dataset preprocessato
+7. Addestra il modello Random Forest
+8. Scarica il modello `.pkl`
+
+---
+
+## 🎯 Funzionalità Avanzate
+
+✅ **Pipelines automatiche**: Genera codice Python pronto per essere usato  
+✅ **Visualizzazioni interattive**: Plotly per grafici dinamici  
+✅ **Export multiplo**: Immagini, HTML, CSV, modelli  
+✅ **Zero coding**: UI intuitiva per tutti i livelli di utente  
+✅ **Machine Learning ready**: Valutazione modelli e metriche complete  
+
+---
+
+## 🤝 Contributi
+
+I contributi sono benvenuti! Se trovi un bug o hai suggerimenti per miglioramenti:
+1. Apri un **Issue**
+2. Crea un **Pull Request** con le tue modifiche
+
+---
+
+**Buon analisi dei dati! 📊✨**
