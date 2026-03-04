@@ -48,10 +48,16 @@ def load_dataset():
     if source == "📂 Upload CSV":
         uploaded = st.file_uploader("Carica CSV", type="csv")
         if uploaded:
-            df = pd.read_csv(uploaded)
-            df = df.replace("?", pd.NA)
-            df = df.apply(pd.to_numeric, errors="ignore")
-            st.session_state.filename = uploaded.name
+            # Prova prima con virgola, poi con punto e virgola
+            try:
+                df = pd.read_csv(uploaded)
+                # Verifica che abbia più di una colonna (altrimenti sep sbagliato)
+                if df.shape[1] == 1:
+                    uploaded.seek(0)  # Riporta il file all'inizio
+                    df = pd.read_csv(uploaded, sep=";", decimal=",")
+            except Exception:
+                uploaded.seek(0)
+                df = pd.read_csv(uploaded, sep=";", decimal=",")
 
     elif source == "📦 Libreria ISLP":
         islp_datasets = [
@@ -73,19 +79,66 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input("Incolla URL del file CSV",
-                            placeholder="https://raw.githubusercontent.com/.../file.csv")
-        st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
+        with st.expander("🔑 Come configurare Kaggle API", expanded=False):
+            st.markdown("""
+                    ### Per scaricare dataset da Kaggle sono necessari 3 passaggi:
+
+                    **1. Ottieni la tua API Key**
+                    - Vai su [kaggle.com](https://kaggle.com) → clicca sulla tua foto profilo → **Settings**
+                    - Scorri fino alla sezione **API** → clicca **Create New Token**
+                    - Verrà scaricato un file `kaggle.json` con le tue credenziali
+
+                    **2. Crea il file di configurazione**
+
+                    Nella cartella del progetto cerca il file `.streamlit/secrets.toml` e incolla:
+                    ```toml
+                    [kaggle]
+                    username = "il_tuo_username"
+                    key = "la_tua_api_key"
+                """)
+        url = st.text_input(
+            "Incolla URL del file CSV o link Kaggle",
+            placeholder="https://www.kaggle.com/datasets/user/dataset  oppure  https://raw.githubusercontent.com/.../file.csv"
+        )
+        st.caption("💡 Kaggle: incolla l'URL della pagina del dataset (es. kaggle.com/datasets/user/nome) | GitHub: usa il link Raw del file .csv")
+
         if url and st.button("Carica da URL"):
             try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
-                df = pd.read_csv(io.StringIO(response.text))
-                df = df.replace("?", pd.NA)
-                df = df.apply(pd.to_numeric, errors="ignore")
-                st.session_state.filename = url.split("/")[-1] or "dataset.csv"
-            except requests.exceptions.HTTPError as e:
-                st.error(f"Errore HTTP: {e}")
+                if "kaggle.com/datasets" in url:
+                    import tempfile, os
+
+                    # ← Imposta le credenziali PRIMA di importare kaggle
+                    os.environ["KAGGLE_USERNAME"] = st.secrets["kaggle"]["username"]
+                    os.environ["KAGGLE_KEY"] = st.secrets["kaggle"]["key"]
+
+                    import kaggle  # ← Solo dopo aver settato le env variables
+
+                    parts = url.rstrip("/").split("/datasets/")[-1]
+                    dataset_id = "/".join(parts.split("/")[:2])
+
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        kaggle.api.authenticate()
+                        kaggle.api.dataset_download_files(dataset_id, path=tmpdir, unzip=True)
+                        csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
+                        if not csv_files:
+                            st.error("Nessun file CSV trovato nel dataset Kaggle.")
+                            st.stop()
+                        chosen = st.selectbox("Scegli CSV:", csv_files) if len(csv_files) > 1 else csv_files[0]
+                        df = pd.read_csv(os.path.join(tmpdir, chosen))
+                        for col in df.select_dtypes(include="object").columns:
+                            df[col] = df[col].astype(str)
+                        st.session_state.filename = chosen
+
+                else:
+                    raw_text = requests.get(url, timeout=10).text
+                    df = pd.read_csv(io.StringIO(raw_text))
+                    if df.shape[1] == 1:
+                        df = pd.read_csv(io.StringIO(raw_text), sep=";", decimal=",")
+                    st.session_state.filename = url.split("/")[-1] or "dataset.csv"
+
+                st.session_state.df = df
+                st.rerun()
+
             except Exception as e:
                 st.error(f"Errore: {e}")
 
@@ -104,7 +157,7 @@ selected_file = st.session_state.get("filename", "dataset.csv")
 st.success(f"✅ {selected_file} — {df.shape[0]} righe × {df.shape[1]} colonne")
 
 with st.expander("🔍 Anteprima dati", expanded=False):
-    st.dataframe(df.head(50), use_container_width=True)
+    st.dataframe(df.head(50), width='content')
     st.caption(f"{df.shape[0]} righe × {df.shape[1]} colonne")
     
     st.markdown("**Tipi di dato per colonna:**")
@@ -115,7 +168,7 @@ with st.expander("🔍 Anteprima dati", expanded=False):
         "Nulli": df.isnull().sum().values,
         "Esempio": [df[col].dropna().iloc[0] if not df[col].dropna().empty else "N/A" for col in df.columns]
     })
-    st.dataframe(dtype_df, use_container_width=True, hide_index=True)
+    st.dataframe(dtype_df, width='content', hide_index=True)
 
 
 st.divider()
@@ -275,7 +328,7 @@ except Exception as e:
     st.error(f"Errore nella generazione del grafico: {e}")
     st.stop()
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width='content')
 
 st.subheader("⬇️ Esporta")
 ecol1, ecol2 = st.columns(2)

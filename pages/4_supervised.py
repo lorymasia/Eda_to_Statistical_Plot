@@ -85,21 +85,70 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input("Incolla URL del file CSV",
-                            placeholder="https://raw.githubusercontent.com/.../file.csv")
-        st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
+        with st.expander("🔑 Come configurare Kaggle API", expanded=False):
+            st.markdown("""
+                    ### Per scaricare dataset da Kaggle sono necessari 3 passaggi:
+
+                    **1. Ottieni la tua API Key**
+                    - Vai su [kaggle.com](https://kaggle.com) → clicca sulla tua foto profilo → **Settings**
+                    - Scorri fino alla sezione **API** → clicca **Create New Token**
+                    - Verrà scaricato un file `kaggle.json` con le tue credenziali
+
+                    **2. Crea il file di configurazione**
+
+                    Nella cartella del progetto cerca il file `.streamlit/secrets.toml` e incolla:
+                    ```toml
+                    [kaggle]
+                    username = "il_tuo_username"
+                    key = "la_tua_api_key"
+                """)
+        url = st.text_input(
+            "Incolla URL del file CSV o link Kaggle",
+            placeholder="https://www.kaggle.com/datasets/user/dataset  oppure  https://raw.githubusercontent.com/.../file.csv"
+        )
+        st.caption("💡 Kaggle: incolla l'URL della pagina del dataset (es. kaggle.com/datasets/user/nome) | GitHub: usa il link Raw del file .csv")
+
         if url and st.button("Carica da URL"):
             try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
-                df = pd.read_csv(io.StringIO(response.text))
-                df = df.replace("?", pd.NA)
-                df = df.apply(pd.to_numeric, errors="ignore")
-                st.session_state.filename = url.split("/")[-1] or "dataset.csv"
-            except requests.exceptions.HTTPError as e:
-                st.error(f"Errore HTTP: {e}")
+                if "kaggle.com/datasets" in url:
+                    import tempfile, os
+
+                    # ← Imposta le credenziali PRIMA di importare kaggle
+                    os.environ["KAGGLE_USERNAME"] = st.secrets["kaggle"]["username"]
+                    os.environ["KAGGLE_KEY"] = st.secrets["kaggle"]["key"]
+
+                    import kaggle  # ← Solo dopo aver settato le env variables
+
+                    parts = url.rstrip("/").split("/datasets/")[-1]
+                    dataset_id = "/".join(parts.split("/")[:2])
+
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        kaggle.api.authenticate()
+                        kaggle.api.dataset_download_files(dataset_id, path=tmpdir, unzip=True)
+                        csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
+                        if not csv_files:
+                            st.error("Nessun file CSV trovato nel dataset Kaggle.")
+                            st.stop()
+                        chosen = st.selectbox("Scegli CSV:", csv_files) if len(csv_files) > 1 else csv_files[0]
+                        df = pd.read_csv(os.path.join(tmpdir, chosen))
+                        for col in df.select_dtypes(include="object").columns:
+                            df[col] = df[col].astype(str)
+                        st.session_state.filename = chosen
+
+
+                else:
+                    raw_text = requests.get(url, timeout=10).text
+                    df = pd.read_csv(io.StringIO(raw_text))
+                    if df.shape[1] == 1:
+                        df = pd.read_csv(io.StringIO(raw_text), sep=";", decimal=",")
+                    st.session_state.filename = url.split("/")[-1] or "dataset.csv"
+
+                st.session_state.df = df
+                st.rerun()
+
             except Exception as e:
                 st.error(f"Errore: {e}")
+
 
     if df is not None:
         st.session_state.df = df
@@ -115,7 +164,7 @@ if df is None:
 st.success(f"✅ {st.session_state.get('filename', 'dataset')} — {df.shape[0]} righe × {df.shape[1]} colonne")
 
 with st.expander("🔍 Anteprima dati", expanded=False):
-    st.dataframe(df.head(50), use_container_width=True)
+    st.dataframe(df.head(50), width='content')
 
 st.divider()
 
@@ -143,7 +192,7 @@ chart_height = st.slider("Altezza grafici (px)", min_value=300, max_value=900, v
 
 st.divider()
 
-if st.button("🚀 Addestra modello", use_container_width=True):
+if st.button("🚀 Addestra modello", width='content'):
     try:
         data = df[feature_cols + [target_col]].dropna()
         X = data[feature_cols].copy()
@@ -200,7 +249,7 @@ if st.button("🚀 Addestra modello", use_container_width=True):
             fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels,
                                color_continuous_scale="Blues", title="Confusion Matrix",
                                labels=dict(x="Predicted", y="Actual"), height=chart_height)
-            st.plotly_chart(fig_cm, use_container_width=True)
+            st.plotly_chart(fig_cm, width='content')
 
             # ROC-AUC
             classes = np.unique(y_test)
@@ -242,7 +291,7 @@ if st.button("🚀 Addestra modello", use_container_width=True):
                         height=chart_height,
                         legend=dict(orientation="h")
                     )
-                    st.plotly_chart(fig_roc, use_container_width=True)
+                    st.plotly_chart(fig_roc, width='content')
             except Exception as roc_err:
                 st.warning(f"ROC non disponibile: {roc_err}")
 
@@ -250,7 +299,7 @@ if st.button("🚀 Addestra modello", use_container_width=True):
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
                 st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
-                                       height=chart_height), use_container_width=True)
+                                       height=chart_height), width='content')
 
             code = f"""import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -296,7 +345,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                 col_i, col_c = st.columns(2)
                 col_i.metric("Intercetta (bias)", f"{intercept:.6f}")
                 
-                st.dataframe(coef_df, use_container_width=True, hide_index=True)
+                st.dataframe(coef_df, width='content', hide_index=True)
                 
                 # Grafico coefficienti
                 fig_coef = px.bar(
@@ -309,7 +358,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                 )
                 fig_coef.add_vline(x=0, line_dash="dash", line_color="gray")
                 fig_coef.update_layout(template="plotly_white")
-                st.plotly_chart(fig_coef, use_container_width=True)
+                st.plotly_chart(fig_coef, width='content')
 
 
             residuals = np.array(y_test) - np.array(y_pred)
@@ -317,7 +366,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                                  labels={"x": "Predicted", "y": "Residuals"},
                                  title="Residual Plot", height=chart_height)
             fig_res.add_hline(y=0, line_dash="dash", line_color="red")
-            st.plotly_chart(fig_res, use_container_width=True)
+            st.plotly_chart(fig_res, width='content')
 
             mean_res = float(np.mean(residuals))
             std_res  = float(np.std(residuals))
@@ -331,12 +380,12 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
             fig_dist.add_vline(x=mean_res, line_dash="dash",
                                annotation_text=f"μ={mean_res:.4f}", annotation_position="top right")
             fig_dist.update_layout(template="plotly_white")
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist, width='content')
 
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
                 st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
-                                       height=chart_height), use_container_width=True)
+                                       height=chart_height), width='content')
 
             code = f"""import pandas as pd, numpy as np
 from sklearn.model_selection import train_test_split

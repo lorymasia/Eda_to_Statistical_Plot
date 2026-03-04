@@ -14,3 +14,7 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Kaggle
+.streamlit/secrets.toml
+.kaggle/

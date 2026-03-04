@@ -74,21 +74,67 @@ def load_dataset():
                 st.error(f"Errore nel caricamento: {e}")
 
     elif source == "🔗 URL diretto":
-        url = st.text_input("Incolla URL del file CSV",
-                            placeholder="https://raw.githubusercontent.com/.../file.csv")
-        st.caption("💡 Su Kaggle: apri il dataset → tre puntini → Copy URL del file .csv raw")
-        if url and st.button("Carica da URL"):
-            try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
-                df = pd.read_csv(io.StringIO(response.text))
-                df = df.replace("?", pd.NA)
-                df = df.apply(pd.to_numeric, errors="ignore")
+        with st.expander("🔑 Come configurare Kaggle API", expanded=False):
+            st.markdown("""
+                    ### Per scaricare dataset da Kaggle sono necessari 3 passaggi:
+
+                    **1. Ottieni la tua API Key**
+                    - Vai su [kaggle.com](https://kaggle.com) → clicca sulla tua foto profilo → **Settings**
+                    - Scorri fino alla sezione **API** → clicca **Create New Token**
+                    - Verrà scaricato un file `kaggle.json` con le tue credenziali
+
+                    **2. Crea il file di configurazione**
+
+                    Nella cartella del progetto cerca il file `.streamlit/secrets.toml` e incolla:
+                    ```toml
+                    [kaggle]
+                    username = "il_tuo_username"
+                    key = "la_tua_api_key"
+                """)
+        url = st.text_input(
+            "Incolla URL del file CSV o link Kaggle",
+            placeholder="https://www.kaggle.com/datasets/user/dataset  oppure  https://raw.githubusercontent.com/.../file.csv"
+        )
+        st.caption("💡 Kaggle: incolla l'URL della pagina del dataset (es. kaggle.com/datasets/user/nome) | GitHub: usa il link Raw del file .csv")
+
+    if url and st.button("Carica da URL"):
+        try:
+            if "kaggle.com/datasets" in url:
+                import tempfile, os
+
+                # ← Imposta le credenziali PRIMA di importare kaggle
+                os.environ["KAGGLE_USERNAME"] = st.secrets["kaggle"]["username"]
+                os.environ["KAGGLE_KEY"] = st.secrets["kaggle"]["key"]
+
+                import kaggle  # ← Solo dopo aver settato le env variables
+
+                parts = url.rstrip("/").split("/datasets/")[-1]
+                dataset_id = "/".join(parts.split("/")[:2])
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    kaggle.api.authenticate()
+                    kaggle.api.dataset_download_files(dataset_id, path=tmpdir, unzip=True)
+                    csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
+                    if not csv_files:
+                        st.error("Nessun file CSV trovato nel dataset Kaggle.")
+                        st.stop()
+                    chosen = st.selectbox("Scegli CSV:", csv_files) if len(csv_files) > 1 else csv_files[0]
+                    df = pd.read_csv(os.path.join(tmpdir, chosen))
+                    for col in df.select_dtypes(include="object").columns:
+                        df[col] = df[col].astype(str)
+                    st.session_state.filename = chosen
+            else:
+                raw_text = requests.get(url, timeout=10).text
+                df = pd.read_csv(io.StringIO(raw_text))
+                if df.shape[1] == 1:
+                    df = pd.read_csv(io.StringIO(raw_text), sep=";", decimal=",")
                 st.session_state.filename = url.split("/")[-1] or "dataset.csv"
-            except requests.exceptions.HTTPError as e:
-                st.error(f"Errore HTTP: {e}")
-            except Exception as e:
-                st.error(f"Errore: {e}")
+
+            st.session_state.df = df
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Errore: {e}")
 
     if df is not None:
         st.session_state.df = df
@@ -116,7 +162,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📊 Esplorazione", "🧹 Pulizia", "🔧 Tra
 
 with tab1:
     st.subheader("Anteprima dataset")
-    st.dataframe(df.head(100), use_container_width=True)
+    st.dataframe(df.head(100), width='stretch')
 
     st.subheader("Tipi di dato per colonna")
     dtype_df = pd.DataFrame({
@@ -125,10 +171,10 @@ with tab1:
         "Valori unici": df.nunique().values,
         "Esempio": [df[col].dropna().iloc[0] if not df[col].dropna().empty else "N/A" for col in df.columns]
     })
-    st.dataframe(dtype_df, use_container_width=True, hide_index=True)
+    st.dataframe(dtype_df, width='stretch', hide_index=True)
 
     st.subheader("Statistiche descrittive")
-    st.dataframe(df.describe(include="all").T, use_container_width=True)
+    st.dataframe(df.describe(include="all").T, width='stretch')
 
     st.subheader("Valori nulli per colonna")
     null_df = pd.DataFrame({"Colonna": df.columns, "Nulli": df.isnull().sum().values,
@@ -136,10 +182,10 @@ with tab1:
     if null_df["Nulli"].sum() == 0:
         st.success("✅ Nessun valore nullo nel dataset.")
     else:
-        st.dataframe(null_df[null_df["Nulli"] > 0], use_container_width=True)
+        st.dataframe(null_df[null_df["Nulli"] > 0], width='stretch')
         fig_null = px.bar(null_df[null_df["Nulli"] > 0], x="Colonna", y="% Nulli",
                           title="Percentuale valori nulli", text_auto=True)
-        st.plotly_chart(fig_null, use_container_width=True)
+        st.plotly_chart(fig_null, width='stretch')
 
     st.subheader("Distribuzione colonne")
     col_explore = st.selectbox("Seleziona colonna", df.columns, key="explore_col")
@@ -149,7 +195,7 @@ with tab1:
         vc = df[col_explore].value_counts().reset_index()
         vc.columns = [col_explore, "count"]
         fig_dist = px.bar(vc, x=col_explore, y="count", title=f"Distribuzione — {col_explore}")
-    st.plotly_chart(fig_dist, use_container_width=True)
+    st.plotly_chart(fig_dist, width='stretch')
 
     st.subheader("Heatmap correlazione")
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
@@ -157,7 +203,7 @@ with tab1:
         corr = df[numeric_cols].corr()
         fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r",
                              title="Correlazione tra feature numeriche")
-        st.plotly_chart(fig_corr, use_container_width=True)
+        st.plotly_chart(fig_corr, width='stretch')
     else:
         st.info("Servono almeno 2 colonne numeriche per la heatmap.")
 
@@ -311,12 +357,12 @@ with tab3:
 
 with tab4:
     st.subheader("📋 Dataset attuale")
-    st.dataframe(st.session_state.df_pre.head(100), use_container_width=True)
+    st.dataframe(st.session_state.df_pre.head(100), width='stretch')
     st.caption(f"{st.session_state.df_pre.shape[0]} righe × {st.session_state.df_pre.shape[1]} colonne")
     st.divider()
     csv_out = st.session_state.df_pre.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Scarica dataset preprocessato (.csv)", data=csv_out,
-                       file_name="preprocessed_dataset.csv", mime="text/csv", use_container_width=True)
+                       file_name="preprocessed_dataset.csv", mime="text/csv", width='stretch')
     st.divider()
     st.subheader("🐍 Codice Python di tutte le trasformazioni")
     if not code_log:
@@ -327,7 +373,7 @@ with tab4:
         full_code += "\n".join(code_log)
         st.code(full_code, language="python")
     st.divider()
-    if st.button("🔄 Reset preprocessing (ricarica originale)", use_container_width=True):
+    if st.button("🔄 Reset preprocessing (ricarica originale)", width='stretch'):
         st.session_state.df_pre = st.session_state.df.copy()
         st.session_state.code_log = []
         st.rerun()

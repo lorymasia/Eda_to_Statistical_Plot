@@ -39,7 +39,7 @@ st.title("📖 Guida al Sito")
 st.markdown("Una spiegazione semplice di tutto quello che trovi in questo sito: algoritmi, metriche e concetti.")
 
 # ─── Tab navigation custom ───────────────────────────────────────────────────
-TABS = ["🤖 Algoritmi", "📊 Metriche", "⚙️ Concetti ML", "📂 Dataset"]
+TABS = ["🤖 Algoritmi", "📊 Metriche", "⚙️ Concetti ML", "📂 Dataset", "🔑 Kaggle API"]
 
 tab_cols = st.columns(len(TABS))
 for i, tab_name in enumerate(TABS):
@@ -433,7 +433,7 @@ Puoi incollare direttamente un link a un file CSV disponibile online.
 
 **Esempi di fonti:**  
 - GitHub (usa il link *Raw* del file)  
-- Kaggle (link diretto al CSV)  
+- Kaggle (link diretto al CSV tramite API)  
 - Qualsiasi URL che punti direttamente a un file `.csv`  
 
 **Come usarlo?**  
@@ -444,3 +444,22 @@ Puoi incollare direttamente un link a un file CSV disponibile online.
 **Nota:** l'URL deve puntare direttamente al file, non a una pagina web.  
 Es. `https://raw.githubusercontent.com/utente/repo/main/data.csv` ✅
     """)
+
+elif active == "🔑 Kaggle API":
+    st.header("🔑 Configurazione Kaggle API")
+    st.markdown("Per scaricare dataset direttamente da Kaggle è necessario configurare le credenziali API una sola volta.")
+
+    accordion("kaggle_step1", "1️⃣ Ottieni la tua API Key", """
+**Dove trovarla:**  
+1. Vai su [kaggle.com](https://kaggle.com) e accedi al tuo account  
+2. Clicca sulla tua **foto profilo** in alto a destra → **Settings**  
+3. Scorri fino alla sezione **API**  
+4. Clicca **Create New Token**  
+
+Verrà scaricato automaticamente un file chiamato `kaggle.json` con questo contenuto:
+```json
+{"username": "tuousername", "key": "abc123xyz..."}
+```
+5. Dopo aver ottenuto le credenziali sostituiscile al file secrets.toml
+"""
+    )
