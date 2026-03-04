@@ -157,7 +157,7 @@ selected_file = st.session_state.get("filename", "dataset.csv")
 st.success(f"✅ {selected_file} — {df.shape[0]} righe × {df.shape[1]} colonne")
 
 with st.expander("🔍 Anteprima dati", expanded=False):
-    st.dataframe(df.head(50), width='content')
+    st.dataframe(df.head(50), use_container_width=True)
     st.caption(f"{df.shape[0]} righe × {df.shape[1]} colonne")
     
     st.markdown("**Tipi di dato per colonna:**")
@@ -168,7 +168,7 @@ with st.expander("🔍 Anteprima dati", expanded=False):
         "Nulli": df.isnull().sum().values,
         "Esempio": [df[col].dropna().iloc[0] if not df[col].dropna().empty else "N/A" for col in df.columns]
     })
-    st.dataframe(dtype_df, width='content', hide_index=True)
+    st.dataframe(dtype_df, use_container_width=True, hide_index=True)
 
 
 st.divider()
@@ -328,7 +328,7 @@ except Exception as e:
     st.error(f"Errore nella generazione del grafico: {e}")
     st.stop()
 
-st.plotly_chart(fig, width='content')
+st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("⬇️ Esporta")
 ecol1, ecol2 = st.columns(2)

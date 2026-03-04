@@ -164,7 +164,7 @@ if df is None:
 st.success(f"✅ {st.session_state.get('filename', 'dataset')} — {df.shape[0]} righe × {df.shape[1]} colonne")
 
 with st.expander("🔍 Anteprima dati", expanded=False):
-    st.dataframe(df.head(50), width='content')
+    st.dataframe(df.head(50), use_container_width=True)
 
 st.divider()
 
@@ -192,7 +192,7 @@ chart_height = st.slider("Altezza grafici (px)", min_value=300, max_value=900, v
 
 st.divider()
 
-if st.button("🚀 Addestra modello", width='content'):
+if st.button("🚀 Addestra modello", use_container_width=True):
     try:
         data = df[feature_cols + [target_col]].dropna()
         X = data[feature_cols].copy()
@@ -249,7 +249,7 @@ if st.button("🚀 Addestra modello", width='content'):
             fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels,
                                color_continuous_scale="Blues", title="Confusion Matrix",
                                labels=dict(x="Predicted", y="Actual"), height=chart_height)
-            st.plotly_chart(fig_cm, width='content')
+            st.plotly_chart(fig_cm, use_container_width=True)
 
             # ROC-AUC
             classes = np.unique(y_test)
@@ -291,7 +291,7 @@ if st.button("🚀 Addestra modello", width='content'):
                         height=chart_height,
                         legend=dict(orientation="h")
                     )
-                    st.plotly_chart(fig_roc, width='content')
+                    st.plotly_chart(fig_roc, use_container_width=True)
             except Exception as roc_err:
                 st.warning(f"ROC non disponibile: {roc_err}")
 
@@ -299,7 +299,7 @@ if st.button("🚀 Addestra modello", width='content'):
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
                 st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
-                                       height=chart_height), width='content')
+                                       height=chart_height), use_container_width=True)
 
             code = f"""import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -345,7 +345,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                 col_i, col_c = st.columns(2)
                 col_i.metric("Intercetta (bias)", f"{intercept:.6f}")
                 
-                st.dataframe(coef_df, width='content', hide_index=True)
+                st.dataframe(coef_df, use_container_width=True, hide_index=True)
                 
                 # Grafico coefficienti
                 fig_coef = px.bar(
@@ -358,7 +358,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                 )
                 fig_coef.add_vline(x=0, line_dash="dash", line_color="gray")
                 fig_coef.update_layout(template="plotly_white")
-                st.plotly_chart(fig_coef, width='content')
+                st.plotly_chart(fig_coef, use_container_width=True)
 
 
             residuals = np.array(y_test) - np.array(y_pred)
@@ -366,7 +366,7 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
                                  labels={"x": "Predicted", "y": "Residuals"},
                                  title="Residual Plot", height=chart_height)
             fig_res.add_hline(y=0, line_dash="dash", line_color="red")
-            st.plotly_chart(fig_res, width='content')
+            st.plotly_chart(fig_res, use_container_width=True)
 
             mean_res = float(np.mean(residuals))
             std_res  = float(np.std(residuals))
@@ -380,12 +380,12 @@ print("F1:", f1_score(y_test, y_pred, average="weighted"))"""
             fig_dist.add_vline(x=mean_res, line_dash="dash",
                                annotation_text=f"μ={mean_res:.4f}", annotation_position="top right")
             fig_dist.update_layout(template="plotly_white")
-            st.plotly_chart(fig_dist, width='content')
+            st.plotly_chart(fig_dist, use_container_width=True)
 
             if model_name == "Random Forest":
                 imp = pd.Series(model.feature_importances_, index=feature_cols).sort_values(ascending=True)
                 st.plotly_chart(px.bar(imp, orientation="h", title="Feature Importance",
-                                       height=chart_height), width='content')
+                                       height=chart_height), use_container_width=True)
 
             code = f"""import pandas as pd, numpy as np
 from sklearn.model_selection import train_test_split

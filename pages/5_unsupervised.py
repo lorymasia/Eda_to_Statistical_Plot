@@ -139,7 +139,7 @@ if df is None:
 st.success(f"✅ {st.session_state.get('filename', 'dataset')} — {df.shape[0]} righe × {df.shape[1]} colonne")
 
 with st.expander("🔍 Anteprima dati", expanded=False):
-    st.dataframe(df.head(50), width='content')
+    st.dataframe(df.head(50), use_container_width=True)
 
 st.divider()
 
@@ -171,7 +171,7 @@ color_col = col6.selectbox("Colonna colore aggiuntiva (opzionale)", ["Nessuno"] 
 
 st.divider()
 
-if st.button("🚀 Esegui clustering", width='content'):
+if st.button("🚀 Esegui clustering", use_container_width=True):
     try:
         data = df[feature_cols].dropna()
         X_scaled = StandardScaler().fit_transform(data) if normalize else data.values
@@ -187,7 +187,7 @@ if st.button("🚀 Esegui clustering", width='content'):
                                 labels={"x": "K", "y": "Inertia"}, title="Elbow Method")
             fig_elbow.add_vline(x=n_clusters, line_dash="dash", line_color="red",
                                 annotation_text=f"K={n_clusters}")
-            st.plotly_chart(fig_elbow, width='content')
+            st.plotly_chart(fig_elbow, use_container_width=True)
 
         model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10) if task == "K-Means" else DBSCAN(eps=eps, min_samples=min_samples)
         labels = model.fit_predict(X_scaled)
@@ -234,10 +234,10 @@ if st.button("🚀 Esegui clustering", width='content'):
                                title=f"{viz_method} – Cluster", hover_data=[color_col])
         else:
             fig_s = px.scatter(plot_df, x="PC1", y="PC2", color="Cluster", title=f"{viz_method} – Cluster")
-        st.plotly_chart(fig_s, width='content')
+        st.plotly_chart(fig_s, use_container_width=True)
 
         st.subheader("📋 Statistiche per cluster")
-        st.dataframe(data.groupby("Cluster")[feature_cols].mean().round(3), width='content')
+        st.dataframe(data.groupby("Cluster")[feature_cols].mean().round(3), use_container_width=True)
 
         code = f"""import pandas as pd
 from sklearn.preprocessing import StandardScaler
