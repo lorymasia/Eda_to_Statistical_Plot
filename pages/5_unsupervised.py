@@ -22,13 +22,21 @@ st.title("🔍 Unsupervised Learning")
 st.markdown("Clustering e riduzione dimensionale su dataset senza colonna target.")
 
 def load_dataset():
-    if "df" in st.session_state:
+    if "df_pre" in st.session_state:
+        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}** *(con modifiche preprocessing)*")
+        if st.button("🔄 Cambia dataset"):
+            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        return st.session_state.df_pre   # ← restituisce il dataset modificato
+
+    elif "df" in st.session_state:
         st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
         if st.button("🔄 Cambia dataset"):
-            del st.session_state["df"]
-            del st.session_state["filename"]
+            for key in ["df", "df_pre", "filename"]:
+                st.session_state.pop(key, None)
             st.rerun()
-        return st.session_state.df
+        return st.session_state.df  
 
     source = st.radio(
         "Sorgente dati",

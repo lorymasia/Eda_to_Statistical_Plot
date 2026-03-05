@@ -22,22 +22,22 @@ st.markdown("Esplora, pulisci e trasforma il tuo dataset. Le modifiche restano a
 def load_dataset():
     if "df_pre" in st.session_state:
         st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}** *(con modifiche preprocessing)*")
-        col_a, col_b = st.columns(2)
-        if col_a.button("🔄 Cambia dataset"):
-            for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
-                st.session_state.pop(key, None)
-            st.rerun()
-        if col_b.button("↩️ Usa dataset originale"):
-            st.session_state.pop("df_pre", None)
-            st.rerun()
-        return st.session_state.df_pre
-    elif "df" in st.session_state:
-        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
         if st.button("🔄 Cambia dataset"):
             for key in ["df", "df_pre", "filename", "pre_filename", "code_log"]:
                 st.session_state.pop(key, None)
             st.rerun()
-        return st.session_state.df
+        return st.session_state.df_pre   # ← restituisce il dataset modificato
+
+    elif "df" in st.session_state:
+        st.info(f"📂 Dataset attivo: **{st.session_state.get('filename', 'dataset')}**")
+        if st.button("🔄 Cambia dataset"):
+            for key in ["df", "df_pre", "filename"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        return st.session_state.df       # ← restituisce l'originale
+
+    # ... resto del caricamento
+
 
     source = st.radio(
         "Sorgente dati",
@@ -50,10 +50,16 @@ def load_dataset():
     if source == "📂 Upload CSV":
         uploaded = st.file_uploader("Carica CSV", type="csv")
         if uploaded:
-            df = pd.read_csv(uploaded)
-            df = df.replace("?", pd.NA)
-            df = df.apply(pd.to_numeric, errors="ignore")
-            st.session_state.filename = uploaded.name
+            # Prova prima con virgola, poi con punto e virgola
+            try:
+                df = pd.read_csv(uploaded)
+                # Verifica che abbia più di una colonna (altrimenti sep sbagliato)
+                if df.shape[1] == 1:
+                    uploaded.seek(0)  # Riporta il file all'inizio
+                    df = pd.read_csv(uploaded, sep=";", decimal=",")
+            except Exception:
+                uploaded.seek(0)
+                df = pd.read_csv(uploaded, sep=";", decimal=",")
 
     elif source == "📦 Libreria ISLP":
         islp_datasets = [
