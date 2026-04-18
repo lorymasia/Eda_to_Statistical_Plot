@@ -1,20 +1,45 @@
-# Virtual environment
-venv/
-.venv/
-env/
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/config.toml
 
-# Python cache
+# Worktrees
+.worktrees/
+worktrees/
+
+# Design docs (local only)
+design.md
+docs/
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Streamlit
-.streamlit/secrets.toml
-
-# Kaggle
-.streamlit/secrets.toml
-.kaggle/
+# Data files (optional - uncomment if needed)
+# *.csv
+# *.xlsx
+# *.pkl
