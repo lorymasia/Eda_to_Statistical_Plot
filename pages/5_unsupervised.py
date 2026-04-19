@@ -11,8 +11,11 @@ import requests
 import io
 
 def load_css(filepath):
-    with open(filepath, "r") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    try:
+        with open(filepath, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
 
 load_css("style.css")
 

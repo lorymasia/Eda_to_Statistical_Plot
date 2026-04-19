@@ -135,6 +135,8 @@ def load_dataset():
                 df = pd.read_csv(io.StringIO(raw_text))
                 if df.shape[1] == 1:
                     df = pd.read_csv(io.StringIO(raw_text), sep=";", decimal=",")
+                if not isinstance(df, pd.DataFrame):
+                    df = pd.read_csv(io.StringIO(raw_text), sep=";", decimal=",")
                 st.session_state.filename = url.split("/")[-1] or "dataset.csv"
 
             st.session_state.df = df
@@ -158,12 +160,29 @@ if "df_pre" not in st.session_state or st.session_state.get("pre_filename") != s
     st.session_state.df_pre = df_loaded.copy()
     st.session_state.pre_filename = st.session_state.get("filename")
     st.session_state.code_log = []
+    st.session_state.prehistory = []
+
+if "prehistory" not in st.session_state:
+    st.session_state.prehistory = []
 
 df = st.session_state.df_pre
 code_log = st.session_state.code_log
+prehistory = st.session_state.prehistory
+
+undo_col, redo_col, reset_col = st.columns([1, 1, 2])
+if undo_col.button("↩️ Undo") and len(prehistory) > 0:
+    last_state = prehistory.pop()
+    st.session_state.df_pre = last_state
+    st.session_state.prehistory = prehistory
+    if code_log:
+        code_log.pop()
+    st.rerun()
+if redo_col.button("↩️ Redo"):
+    st.info("Redo non ancora implementato. Usa le operazioni per rifarle.")
+reset_col.button("🔄 Reset preprocessing (ricarica originale)", key="reset_orig")
 
 st.success(f"✅ {st.session_state.get('filename', 'dataset')} — {df.shape[0]} righe × {df.shape[1]} colonne")
-st.caption("💡 Le modifiche applicate qui saranno visibili anche nelle pagine Supervised e Unsupervised.")
+st.caption("💡 Le modifiche applicate qui saranno visibili anche nelle pagine Supervised e Unsupervised. Usa Undo per annullare.")
 
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Esplorazione", "🧹 Pulizia", "🔧 Trasformazioni", "⬇️ Export"])
 
@@ -232,11 +251,35 @@ with tab1:
     else:
         st.info("Servono almeno 2 colonne numeriche per la heatmap.")
 
+    st.subheader("🔎 Rilevamento outlier (IQR)")
+    col_outlier = st.selectbox("Colonna per outlier detection", numeric_cols, key="outlier_col")
+    if col_outlier:
+        Q1 = df[col_outlier].quantile(0.25)
+        Q3 = df[col_outlier].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        outliers = df[(df[col_outlier] < lower_bound) | (df[col_outlier] > upper_bound)][col_outlier]
+        n_outliers = len(outliers)
+        pct_outliers = (n_outliers / len(df) * 100) if len(df) > 0 else 0
+        st.write(f"Outlier rilevati: **{n_outliers}** ({pct_outliers:.2f}%)")
+        st.caption(f"Limiti IQR: [{lower_bound:.2f}, {upper_bound:.2f}]")
+        if n_outliers > 0:
+            fig_outlier = px.box(df, y=col_outlier, title=f"Outlier — {col_outlier}")
+            fig_outlier.add_hline(y=lower_bound, line_dash="dash", line_color="red", annotation_text="Lower")
+            fig_outlier.add_hline(y=upper_bound, line_dash="dash", line_color="red", annotation_text="Upper")
+            st.plotly_chart(fig_outlier, width='stretch')
+
+    st.subheader("🔎 Statistiche complete")
+    if st.checkbox("Mostra statistiche avanzate"):
+        st.write(df.describe(percentiles=[0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]).T)
+
 with tab2:
     st.subheader("🔁 Rimozione duplicati")
     n_dup = df.duplicated().sum()
     st.write(f"Righe duplicate trovate: **{n_dup}**")
     if n_dup > 0 and st.button("Rimuovi duplicati"):
+        prehistory.append(st.session_state.df_pre.copy())
         st.session_state.df_pre = st.session_state.df_pre.drop_duplicates().reset_index(drop=True)
         code_log.append("df = df.drop_duplicates().reset_index(drop=True)")
         st.success(f"✅ Rimossi {n_dup} duplicati.")
@@ -256,18 +299,23 @@ with tab2:
         if st.button("Applica gestione nulli"):
             d = st.session_state.df_pre
             if strategy == "Rimuovi righe":
+                prehistory.append(st.session_state.df_pre.copy())
                 st.session_state.df_pre = d.dropna(subset=[col_null]).reset_index(drop=True)
                 code_log.append(f"df = df.dropna(subset=['{col_null}']).reset_index(drop=True)")
             elif strategy == "Fill con media":
+                prehistory.append(st.session_state.df_pre.copy())
                 st.session_state.df_pre[col_null] = d[col_null].fillna(d[col_null].mean())
                 code_log.append(f"df['{col_null}'] = df['{col_null}'].fillna(df['{col_null}'].mean())")
             elif strategy == "Fill con mediana":
+                prehistory.append(st.session_state.df_pre.copy())
                 st.session_state.df_pre[col_null] = d[col_null].fillna(d[col_null].median())
                 code_log.append(f"df['{col_null}'] = df['{col_null}'].fillna(df['{col_null}'].median())")
             elif strategy == "Fill con moda":
+                prehistory.append(st.session_state.df_pre.copy())
                 st.session_state.df_pre[col_null] = d[col_null].fillna(d[col_null].mode()[0])
                 code_log.append(f"df['{col_null}'] = df['{col_null}'].fillna(df['{col_null}'].mode()[0])")
             elif strategy == "Fill con valore custom" and custom_val is not None:
+                prehistory.append(st.session_state.df_pre.copy())
                 try:
                     val = float(custom_val) if pd.api.types.is_numeric_dtype(d[col_null]) else custom_val
                 except ValueError:
@@ -280,6 +328,7 @@ with tab2:
     st.subheader("🗑️ Rimozione colonne")
     cols_to_drop = st.multiselect("Colonne da rimuovere", df.columns.tolist(), key="drop_cols")
     if cols_to_drop and st.button("Rimuovi colonne selezionate"):
+        prehistory.append(st.session_state.df_pre.copy())
         st.session_state.df_pre = st.session_state.df_pre.drop(columns=cols_to_drop)
         code_log.append(f"df = df.drop(columns={cols_to_drop})")
         st.success(f"✅ Rimosse: {', '.join(cols_to_drop)}")
@@ -289,6 +338,7 @@ with tab2:
     col_rename = st.selectbox("Colonna da rinominare", df.columns.tolist(), key="rename_col")
     new_name = st.text_input("Nuovo nome")
     if new_name and st.button("Rinomina"):
+        prehistory.append(st.session_state.df_pre.copy())
         st.session_state.df_pre = st.session_state.df_pre.rename(columns={col_rename: new_name})
         code_log.append(f"df = df.rename(columns={{'{col_rename}': '{new_name}'}})")
         st.success(f"✅ Rinominata '{col_rename}' → '{new_name}'")
@@ -304,6 +354,7 @@ with tab3:
         enc_type = st.selectbox("Tipo di encoding", ["Label Encoding", "One-Hot Encoding"], key="enc_type")
         if st.button("Applica encoding"):
             d = st.session_state.df_pre
+            prehistory.append(st.session_state.df_pre.copy())
             if enc_type == "Label Encoding":
                 le = LabelEncoder()
                 st.session_state.df_pre[col_enc] = le.fit_transform(d[col_enc].astype(str))
@@ -323,6 +374,7 @@ with tab3:
         cols_scale = st.multiselect("Colonne da scalare", num_cols, key="scale_cols")
         scale_type = st.selectbox("Scaler", ["StandardScaler", "MinMaxScaler", "RobustScaler"], key="scale_type")
         if cols_scale and st.button("Applica scaling"):
+            prehistory.append(st.session_state.df_pre.copy())
             scalers = {"StandardScaler": StandardScaler(), "MinMaxScaler": MinMaxScaler(), "RobustScaler": RobustScaler()}
             scaler = scalers[scale_type]
             st.session_state.df_pre[cols_scale] = scaler.fit_transform(st.session_state.df_pre[cols_scale])
@@ -335,6 +387,7 @@ with tab3:
     if num_cols2:
         col_log = st.selectbox("Colonna", num_cols2, key="log_col")
         if st.button("Applica Log Transform"):
+            prehistory.append(st.session_state.df_pre.copy())
             d = st.session_state.df_pre
             if (d[col_log] <= 0).any():
                 st.warning("⚠️ Valori ≤ 0: verrà usato log1p.")
@@ -353,6 +406,7 @@ with tab3:
         n_bins = st.slider("Numero di bin", min_value=2, max_value=10, value=3, key="n_bins")
         bin_labels_input = st.text_input("Etichette bin (opzionale, separate da virgola)", placeholder="es. basso,medio,alto")
         if st.button("Applica Binning"):
+            prehistory.append(st.session_state.df_pre.copy())
             d = st.session_state.df_pre
             labels = None
             if bin_labels_input.strip():
@@ -371,6 +425,7 @@ with tab3:
     st.caption(f"Tipo attuale: `{df[col_cast].dtype}`")
     cast_type = st.selectbox("Converti in", ["int", "float", "str", "bool"], key="cast_type")
     if st.button("Applica conversione tipo"):
+        prehistory.append(st.session_state.df_pre.copy())
         try:
             type_map = {"int": int, "float": float, "str": str, "bool": bool}
             st.session_state.df_pre[col_cast] = st.session_state.df_pre[col_cast].astype(type_map[cast_type])
@@ -401,4 +456,5 @@ with tab4:
     if st.button("🔄 Reset preprocessing (ricarica originale)", width='stretch'):
         st.session_state.df_pre = st.session_state.df.copy()
         st.session_state.code_log = []
+        st.session_state.prehistory = []
         st.rerun()
